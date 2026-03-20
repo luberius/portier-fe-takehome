@@ -177,6 +177,53 @@ describe("persisted-state", () => {
     })
   })
 
+  it("persists resolved conflict decisions when the conflict matches the current version", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        persistedData: [
+          {
+            applicationId: "intercom",
+            currentVersion: "v1.5.2",
+            lastSyncedAt: "2026-03-20T09:30:00.000Z",
+            status: "conflict",
+            history: [],
+          },
+        ],
+      })
+    )
+
+    const sourceEntry = createHistoryEntry()
+    const result = commitResolvedConflictEntry("intercom", sourceEntry, {
+      item_1: "local",
+    })
+
+    const persisted = getPersistedApplicationData("intercom")
+
+    expect(result).toMatchObject({
+      applicationName: "Intercom",
+      resolvedCount: 1,
+    })
+    expect(persisted).toMatchObject({
+      applicationId: "intercom",
+      currentVersion: "v1.5.2",
+      lastSyncedAt: "2026-03-20T10:00:00.000Z",
+      status: "synced",
+    })
+    expect(persisted?.history).toHaveLength(1)
+    expect(persisted?.history[0]).toMatchObject({
+      version: "v1.5.2",
+      source: "user",
+      summary: "Resolved 1 conflict field from v1.5.2.",
+    })
+    expect(persisted?.history[0].items[0].review).toMatchObject({
+      status: "resolved",
+      decision: "local",
+      resolvedAt: "2026-03-20T10:00:00.000Z",
+      resolvedBy: "User",
+    })
+  })
+
   it("does nothing when resolving a stale conflict from an older version", () => {
     localStorage.setItem(
       STORAGE_KEY,

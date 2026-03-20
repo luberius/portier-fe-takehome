@@ -222,10 +222,18 @@ export function commitResolvedConflictEntry(
   decisions: Record<string, ReviewDecision>
 ) {
   const state = readState()
-  const timestamp = new Date().toISOString()
   const existingPersistedData = state.persistedData.find(
     (item) => item.applicationId === applicationId
   )
+
+  if (
+    existingPersistedData &&
+    existingPersistedData.currentVersion !== sourceEntry.version
+  ) {
+    return
+  }
+
+  const timestamp = new Date().toISOString()
   const historyEntry = createResolvedConflictEntry(
     applicationId,
     sourceEntry,

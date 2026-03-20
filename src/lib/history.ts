@@ -79,13 +79,12 @@ export function getLatestConflictHistoryEntry(history: HistoryEntry[]) {
 
 export function formatHistoryMetrics(entry: HistoryEntry) {
   const parts = [
-    entry.metrics.added > 0 ? `${entry.metrics.added} added` : null,
-    entry.metrics.updated > 0 ? `${entry.metrics.updated} updated` : null,
-    entry.metrics.deleted > 0 ? `${entry.metrics.deleted} deleted` : null,
-    entry.metrics.requiresReview > 0
-      ? `${entry.metrics.requiresReview} review`
-      : null,
-    entry.metrics.resolved > 0 ? `${entry.metrics.resolved} resolved` : null,
+    entry.metrics.added > 0 && `${entry.metrics.added} added`,
+    entry.metrics.updated > 0 && `${entry.metrics.updated} updated`,
+    entry.metrics.deleted > 0 && `${entry.metrics.deleted} deleted`,
+    entry.metrics.requiresReview > 0 &&
+      `${entry.metrics.requiresReview} review`,
+    entry.metrics.resolved > 0 && `${entry.metrics.resolved} resolved`,
   ].filter(Boolean)
 
   if (parts.length === 0) {
