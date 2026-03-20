@@ -32,6 +32,13 @@ const fieldLabels: Record<string, string> = {
   user_id: "User ID",
 }
 
+type SequentialGroup = {
+  changeType: ChangeType
+  entityType: EntityType
+  entityId: string
+  entityLabel: string
+}
+
 function getApplicationDetail(applicationId: string) {
   const detail = applicationDetails.find((item) => item.applicationId === applicationId)
 
@@ -87,118 +94,56 @@ function createReviewState(required: boolean): HistoryItem["review"] {
   }
 }
 
-function createStandaloneItem(
-  change: SyncChange,
-  index: number,
-  entityType: EntityType,
-  applicationName: string
-) {
-  const entityId =
-    change.change_type === "ADD"
-      ? change.new_value ?? `${entityType}-${index + 1}`
-      : change.current_value ?? `${entityType}-${index + 1}`
-
-  return {
-    id: change.id,
-    entityType,
-    entityId,
-    entityLabel: `${applicationName} ${entityType} change ${index + 1}`,
-    fieldPath: change.field_name,
-    fieldLabel: getFieldLabel(change.field_name),
-    changeType: change.change_type,
-    localValue: change.current_value ?? null,
-    externalValue: change.new_value ?? null,
-    review: createReviewState(change.change_type === "DELETE"),
+function getGroupLabel(changeType: ChangeType, entityType: EntityType, index: number) {
+  if (changeType === "ADD") {
+    return `New ${entityType} ${index}`
   }
+
+  if (changeType === "DELETE") {
+    return `Deleted ${entityType} ${index}`
+  }
+
+  return `Updated ${entityType} ${index}`
 }
 
-function normalizeChanges(changes: SyncChange[], applicationName: string) {
+function normalizeChanges(changes: SyncChange[]) {
   const items: HistoryItem[] = []
-  const entityCounts = new Map<EntityType, number>()
-  let openAddGroup:
-    | {
-        entityType: EntityType
-        entityId: string
-        entityLabel: string
-      }
-    | undefined
+  const groupCounts = new Map<string, number>()
+  let openGroup: SequentialGroup | undefined
 
-  for (const [index, change] of changes.entries()) {
+  for (const change of changes) {
     const entityType = getEntityType(change.field_name)
-    const fieldKey = getFieldKey(change.field_name)
+    const changeType = change.change_type
 
     if (
-      openAddGroup &&
-      (change.change_type === "DELETE" ||
-        change.change_type === "ADD" ||
-        entityType !== openAddGroup.entityType)
+      !openGroup ||
+      openGroup.entityType !== entityType ||
+      openGroup.changeType !== changeType
     ) {
-      openAddGroup = undefined
-    }
+      const groupKey = `${entityType}:${changeType}`
+      const nextCount = (groupCounts.get(groupKey) ?? 0) + 1
+      groupCounts.set(groupKey, nextCount)
 
-    if (change.change_type === "ADD" && fieldKey === "id") {
-      const nextCount = (entityCounts.get(entityType) ?? 0) + 1
-      entityCounts.set(entityType, nextCount)
-
-      openAddGroup = {
+      openGroup = {
+        changeType,
         entityType,
-        entityId: change.new_value ?? `${entityType}-new-${nextCount}`,
-        entityLabel: `New ${entityType} ${nextCount}`,
+        entityId: `${entityType}-${changeType.toLowerCase()}-${nextCount}`,
+        entityLabel: getGroupLabel(changeType, entityType, nextCount),
       }
-
-      items.push({
-        id: change.id,
-        entityType,
-        entityId: openAddGroup.entityId,
-        entityLabel: openAddGroup.entityLabel,
-        fieldPath: change.field_name,
-        fieldLabel: getFieldLabel(change.field_name),
-        changeType: change.change_type,
-        localValue: change.current_value ?? null,
-        externalValue: change.new_value ?? null,
-        review: createReviewState(false),
-      })
-
-      continue
     }
 
-    if (change.change_type === "DELETE" && fieldKey === "id") {
-      const nextCount = (entityCounts.get(entityType) ?? 0) + 1
-      entityCounts.set(entityType, nextCount)
-
-      items.push({
-        id: change.id,
-        entityType,
-        entityId: change.current_value ?? `${entityType}-deleted-${nextCount}`,
-        entityLabel: `Deleted ${entityType} ${nextCount}`,
-        fieldPath: change.field_name,
-        fieldLabel: getFieldLabel(change.field_name),
-        changeType: change.change_type,
-        localValue: change.current_value ?? null,
-        externalValue: change.new_value ?? null,
-        review: createReviewState(true),
-      })
-
-      continue
-    }
-
-    if (openAddGroup && entityType === openAddGroup.entityType) {
-      items.push({
-        id: change.id,
-        entityType,
-        entityId: openAddGroup.entityId,
-        entityLabel: openAddGroup.entityLabel,
-        fieldPath: change.field_name,
-        fieldLabel: getFieldLabel(change.field_name),
-        changeType: change.change_type,
-        localValue: change.current_value ?? null,
-        externalValue: change.new_value ?? null,
-        review: createReviewState(false),
-      })
-      continue
-    }
-
-    items.push(createStandaloneItem(change, index, entityType, applicationName))
+    items.push({
+      id: change.id,
+      entityType,
+      entityId: openGroup.entityId,
+      entityLabel: openGroup.entityLabel,
+      fieldPath: change.field_name,
+      fieldLabel: getFieldLabel(change.field_name),
+      changeType,
+      localValue: change.current_value ?? null,
+      externalValue: change.new_value ?? null,
+      review: createReviewState(changeType === "DELETE"),
+    })
   }
 
   return items
@@ -236,7 +181,7 @@ export async function getSyncPreview(applicationId: string): Promise<SyncPreview
   const persistedData = getPersistedApplicationData(applicationId)
   const response = await syncApplication(applicationId)
   const syncApproval = response.data.sync_approval
-  const items = normalizeChanges(syncApproval.changes, syncApproval.application_name)
+  const items = normalizeChanges(syncApproval.changes)
   const currentVersion = persistedData?.currentVersion ?? detail.currentVersion
 
   return {

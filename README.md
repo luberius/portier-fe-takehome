@@ -31,8 +31,7 @@ The app doesn't try to rebuild the full state of every user, door, or key from t
 - **Sync Previews**: The sync API provides a list of proposed changes (a "diff") to review, rather than sending the entire database state. Because of this, the app is built as a review tool for approving specific updates. We don't try to reconstruct or mirror the full state of every record in the system; we just focus on tracking the history of the changes that were actually approved.
 - **Grouping Changes**: 
     - Early on, we expected the API to return changes that were easy to link to specific records. However, we observed that the API can return multiple changes for the same field (like two different `user.phone` updates) without a unique ID to tie them together.
-    - Because of this ambiguity, the app relies on **sequential grouping**. If field changes for the same entity (like `user.email` and `user.role`) appear one after another in the API response, we group them into a single card.
-    - We also use `id` fields (like `user.id`) as markers to start a new group for added or deleted records. 
+    - Because of this ambiguity, the app relies on **sequential grouping by entity type and change type**. If consecutive changes for the same entity family and operation appear together, they are grouped into one review card. This applies consistently across users, doors, and keys.
     - If a field change appears out of sequence or doesn't have a clear parent, it's shown as its own individual item to keep the review accurate.
 
 ## Design Decisions
