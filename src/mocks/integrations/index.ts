@@ -1,0 +1,6 @@
+export { salesforceDetail } from "./salesforce"
+export { hubspotDetail } from "./hubspot"
+export { stripeDetail } from "./stripe"
+export { slackDetail } from "./slack"
+export { zendeskDetail } from "./zendesk"
+export { intercomDetail } from "./intercom"
